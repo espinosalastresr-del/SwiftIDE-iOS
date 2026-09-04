@@ -7,7 +7,6 @@ struct EditorWorkspaceView: View {
     
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            // Sidebar - File Browser
             FileBrowserView()
                 .navigationTitle(appState.currentProject?.name ?? "Proyecto")
                 .toolbar {
@@ -21,52 +20,63 @@ struct EditorWorkspaceView: View {
                     }
                 }
         } detail: {
-            // Editor area
-            Group {
-                if let doc = appState.activeDocument {
-                    VStack(spacing: 0) {
-                        if appState.openDocuments.count > 1 {
-                            DocumentTabsView()
-                        }
-                        CodeEditorContainer(document: doc)
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "Ningún archivo abierto",
-                        systemImage: "doc.text",
-                        description: Text("Toca un archivo en el explorador para editarlo.")
-                    )
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationTitle(appState.activeDocument?.fileName ?? "Editor")
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    if appState.activeDocument != nil {
-                        Button {
-                            showSearch = true
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                        }
-                        
-                        Button {
-                            saveActiveDocument()
-                        } label: {
-                            Image(systemName: "square.and.arrow.down")
-                        }
-                    }
-                }
-            }
-            .sheet(isPresented: $showSearch) {
-                SearchReplaceView()
-            }
+            editorDetail
         }
         .navigationSplitViewStyle(.balanced)
-        // On iPhone, prefer showing the detail when a document is opened
         .onChange(of: appState.activeDocumentID) { _, newID in
             if newID != nil {
-                columnVisibility = .detailOnly
+                // Force detail column on iPhone after opening a file
+                withAnimation {
+                    columnVisibility = .detailOnly
+                }
             }
+        }
+    }
+    
+    @ViewBuilder
+    private var editorDetail: some View {
+        Group {
+            if let doc = appState.activeDocument {
+                VStack(spacing: 0) {
+                    if appState.openDocuments.count > 1 {
+                        DocumentTabsView()
+                    }
+                    CodeEditorContainer(document: doc)
+                }
+            } else {
+                ContentUnavailableView(
+                    "Ningún archivo abierto",
+                    systemImage: "doc.text",
+                    description: Text("Toca un archivo en el explorador para editarlo.")
+                )
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(appState.activeDocument?.fileName ?? "Editor")
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if appState.activeDocument != nil {
+                    Button { showSearch = true } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    Button { saveActiveDocument() } label: {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                }
+            }
+            // Allow going back to sidebar on compact devices
+            ToolbarItem(placement: .topBarLeading) {
+                if appState.activeDocument != nil {
+                    Button {
+                        withAnimation { columnVisibility = .all }
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showSearch) {
+            SearchReplaceView()
         }
     }
     
@@ -115,14 +125,10 @@ struct DocumentTab: View {
                     .fill(.orange)
                     .frame(width: 7, height: 7)
             }
-            
             Text(document.fileName)
                 .font(.caption)
                 .lineLimit(1)
-            
-            Button {
-                onClose()
-            } label: {
+            Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.caption2)
             }
@@ -132,9 +138,7 @@ struct DocumentTab: View {
         .padding(.vertical, 8)
         .background(isActive ? Color(white: 0.2) : Color.clear)
         .cornerRadius(6)
-        .onTapGesture {
-            onSelect()
-        }
+        .onTapGesture(perform: onSelect)
     }
 }
 

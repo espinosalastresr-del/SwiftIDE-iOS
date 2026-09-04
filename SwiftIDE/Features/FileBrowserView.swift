@@ -2,6 +2,8 @@ import SwiftUI
 
 struct FileBrowserView: View {
     @EnvironmentObject var appState: AppState
+    
+    @State private var expandedFolders: Set<String> = []
     @State private var showCreateFile = false
     @State private var showCreateFolder = false
     @State private var showRename = false
@@ -10,10 +12,28 @@ struct FileBrowserView: View {
     @State private var nodeToRename: FileNode?
     @State private var clipboardURL: URL?
     @State private var clipboardIsCut = false
+    @State private var errorMessage: String?
+    
+    /// Flattened visible rows based on expansion state.
+    private var visibleRows: [(node: FileNode, depth: Int)] {
+        var rows: [(FileNode, Int)] = []
+        func walk(_ nodes: [FileNode], depth: Int) {
+            for node in nodes {
+                rows.append((node, depth))
+                if node.type == .folder,
+                   expandedFolders.contains(node.url.path),
+                   let children = node.children {
+                    walk(children, depth: depth + 1)
+                }
+            }
+        }
+        walk(appState.workspaceManager.currentFileTree, depth: 0)
+        return rows
+    }
     
     var body: some View {
         List {
-            if appState.workspaceManager.currentFileTree.isEmpty {
+            if visibleRows.isEmpty {
                 ContentUnavailableView(
                     "Carpeta vacía",
                     systemImage: "folder",
@@ -21,33 +41,13 @@ struct FileBrowserView: View {
                 )
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(appState.workspaceManager.currentFileTree) { node in
-                    FileNodeRow(
-                        node: node,
-                        depth: 0,
-                        clipboardURL: $clipboardURL,
-                        clipboardIsCut: $clipboardIsCut,
-                        onRequestCreateFile: { dir in
-                            targetDirectory = dir
-                            newName = ""
-                            showCreateFile = true
-                        },
-                        onRequestCreateFolder: { dir in
-                            targetDirectory = dir
-                            newName = ""
-                            showCreateFolder = true
-                        },
-                        onRequestRename: { node in
-                            nodeToRename = node
-                            newName = node.name
-                            showRename = true
-                        }
-                    )
+                ForEach(visibleRows, id: \.node.id) { row in
+                    fileRow(row.node, depth: row.depth)
                 }
             }
         }
         .listStyle(.sidebar)
-        .id(appState.fileTreeVersion) // force refresh when tree changes
+        .id(appState.fileTreeVersion)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -99,141 +99,89 @@ struct FileBrowserView: View {
             Button("Cancelar", role: .cancel) { nodeToRename = nil }
             Button("Renombrar") { renameNode() }
         }
-    }
-    
-    private func createFile() {
-        guard let dir = targetDirectory ?? appState.currentProject?.rootURL,
-              !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task {
-            do {
-                let url = try await appState.fileSystem.createFile(named: name, in: dir)
-                await appState.refreshFileTree()
-                let doc = try await appState.workspaceManager.openFile(at: url)
-                appState.openDocument(doc)
-            } catch {
-                print("Error creating file: \(error)")
-            }
+        .alert("Error", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
         }
     }
     
-    private func createFolder() {
-        guard let dir = targetDirectory ?? appState.currentProject?.rootURL,
-              !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task {
-            do {
-                _ = try await appState.fileSystem.createFolder(named: name, in: dir)
-                await appState.refreshFileTree()
-            } catch {
-                print("Error creating folder: \(error)")
-            }
-        }
-    }
+    // MARK: - Row
     
-    private func renameNode() {
-        guard let node = nodeToRename,
-              !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task {
-            do {
-                _ = try await appState.fileSystem.rename(at: node.url, to: name)
-                // Close document if it was open under old path
-                if let open = appState.openDocuments.first(where: { $0.fileURL == node.url }) {
-                    appState.closeDocument(open.id)
+    @ViewBuilder
+    private func fileRow(_ node: FileNode, depth: Int) -> some View {
+        let isFolder = node.type == .folder
+        let isExpanded = expandedFolders.contains(node.url.path)
+        let isCut = clipboardIsCut && clipboardURL == node.url
+        
+        Button {
+            if isFolder {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    if isExpanded {
+                        expandedFolders.remove(node.url.path)
+                    } else {
+                        expandedFolders.insert(node.url.path)
+                    }
                 }
-                await appState.refreshFileTree()
-            } catch {
-                print("Error renaming: \(error)")
-            }
-            nodeToRename = nil
-        }
-    }
-    
-    private func pasteClipboard(into directory: URL?) {
-        guard let src = clipboardURL, let dir = directory else { return }
-        Task {
-            do {
-                if clipboardIsCut {
-                    _ = try await appState.fileSystem.move(item: src, to: dir)
-                    clipboardURL = nil
-                    clipboardIsCut = false
-                } else {
-                    _ = try await appState.fileSystem.copy(item: src, to: dir)
-                }
-                await appState.refreshFileTree()
-            } catch {
-                print("Error paste: \(error)")
-            }
-        }
-    }
-}
-
-struct FileNodeRow: View {
-    @EnvironmentObject var appState: AppState
-    let node: FileNode
-    let depth: Int
-    @Binding var clipboardURL: URL?
-    @Binding var clipboardIsCut: Bool
-    var onRequestCreateFile: (URL) -> Void
-    var onRequestCreateFolder: (URL) -> Void
-    var onRequestRename: (FileNode) -> Void
-    
-    @State private var isExpanded: Bool = false
-    
-    var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            if node.type == .folder, let children = node.children {
-                ForEach(children) { child in
-                    FileNodeRow(
-                        node: child,
-                        depth: depth + 1,
-                        clipboardURL: $clipboardURL,
-                        clipboardIsCut: $clipboardIsCut,
-                        onRequestCreateFile: onRequestCreateFile,
-                        onRequestCreateFolder: onRequestCreateFolder,
-                        onRequestRename: onRequestRename
-                    )
-                }
+            } else {
+                openFile(node)
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: iconName)
-                    .foregroundStyle(iconColor)
-                    .frame(width: 18)
+                // Indent
+                Color.clear.frame(width: CGFloat(depth) * 14)
+                
+                if isFolder {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                } else {
+                    Color.clear.frame(width: 12)
+                }
+                
+                Image(systemName: iconName(for: node, expanded: isExpanded))
+                    .foregroundStyle(iconColor(for: node))
+                    .frame(width: 20)
                 
                 Text(node.name)
                     .font(.subheadline)
                     .lineLimit(1)
-                    .foregroundStyle(clipboardIsCut && clipboardURL == node.url ? .secondary : .primary)
+                    .foregroundStyle(isCut ? .secondary : .primary)
+                    .strikethrough(isCut)
                 
                 Spacer()
             }
             .contentShape(Rectangle())
-            .onTapGesture {
-                if node.type != .folder {
-                    openFile()
-                }
-            }
         }
-        // Hide disclosure chevron for files
-        .accentColor(node.type == .folder ? .secondary : .clear)
+        .buttonStyle(.plain)
         .contextMenu {
-            if node.type != .folder {
-                Button { openFile() } label: {
+            if !isFolder {
+                Button { openFile(node) } label: {
                     Label("Abrir", systemImage: "doc")
                 }
             }
             
-            if node.type == .folder {
-                Button { onRequestCreateFile(node.url) } label: {
+            if isFolder {
+                Button {
+                    targetDirectory = node.url
+                    newName = ""
+                    showCreateFile = true
+                } label: {
                     Label("Nuevo archivo aquí", systemImage: "doc.badge.plus")
                 }
-                Button { onRequestCreateFolder(node.url) } label: {
+                Button {
+                    targetDirectory = node.url
+                    newName = ""
+                    showCreateFolder = true
+                } label: {
                     Label("Nueva carpeta aquí", systemImage: "folder.badge.plus")
                 }
                 if clipboardURL != nil {
-                    Button { pasteIntoFolder() } label: {
+                    Button { pasteClipboard(into: node.url) } label: {
                         Label("Pegar aquí", systemImage: "doc.on.clipboard")
                     }
                 }
@@ -255,21 +203,27 @@ struct FileNodeRow: View {
                 Label("Cortar", systemImage: "scissors")
             }
             
-            Button { onRequestRename(node) } label: {
+            Button {
+                nodeToRename = node
+                newName = node.name
+                showRename = true
+            } label: {
                 Label("Renombrar", systemImage: "pencil")
             }
             
             Divider()
             
-            Button(role: .destructive) { deleteNode() } label: {
+            Button(role: .destructive) {
+                deleteNode(node)
+            } label: {
                 Label("Eliminar", systemImage: "trash")
             }
         }
     }
     
-    private var iconName: String {
+    private func iconName(for node: FileNode, expanded: Bool) -> String {
         switch node.type {
-        case .folder: return isExpanded ? "folder.fill" : "folder"
+        case .folder: return expanded ? "folder.fill" : "folder"
         case .swift: return "swift"
         case .json: return "curlybraces"
         case .text: return "doc.text"
@@ -278,7 +232,7 @@ struct FileNodeRow: View {
         }
     }
     
-    private var iconColor: Color {
+    private func iconColor(for node: FileNode) -> Color {
         switch node.type {
         case .folder: return .blue
         case .swift: return .orange
@@ -289,46 +243,120 @@ struct FileNodeRow: View {
         }
     }
     
-    private func openFile() {
+    // MARK: - Actions
+    
+    private func openFile(_ node: FileNode) {
         Task {
             do {
                 let doc = try await appState.workspaceManager.openFile(at: node.url)
-                await MainActor.run {
-                    appState.openDocument(doc)
-                }
+                appState.openDocument(doc)
             } catch {
-                print("Error opening file: \(error)")
+                errorMessage = "No se pudo abrir: \(error.localizedDescription)"
             }
         }
     }
     
-    private func deleteNode() {
-        Task {
-            try? await appState.fileSystem.delete(at: node.url)
-            // Close if open
-            if let open = appState.openDocuments.first(where: { $0.fileURL == node.url }) {
-                await MainActor.run { appState.closeDocument(open.id) }
-            }
-            await appState.refreshFileTree()
-        }
-    }
-    
-    private func pasteIntoFolder() {
-        guard let src = clipboardURL else { return }
+    private func createFile() {
+        guard let dir = targetDirectory ?? appState.currentProject?.rootURL else { return }
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
         Task {
             do {
-                if clipboardIsCut {
-                    _ = try await appState.fileSystem.move(item: src, to: node.url)
-                    await MainActor.run {
-                        clipboardURL = nil
-                        clipboardIsCut = false
-                    }
-                } else {
-                    _ = try await appState.fileSystem.copy(item: src, to: node.url)
+                let url = try await appState.fileSystem.createFile(named: name, in: dir)
+                // Auto-expand parent folder
+                expandedFolders.insert(dir.path)
+                await appState.refreshFileTree()
+                let doc = try await appState.workspaceManager.openFile(at: url)
+                appState.openDocument(doc)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
+    private func createFolder() {
+        guard let dir = targetDirectory ?? appState.currentProject?.rootURL else { return }
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        Task {
+            do {
+                _ = try await appState.fileSystem.createFolder(named: name, in: dir)
+                expandedFolders.insert(dir.path)
+                await appState.refreshFileTree()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
+    private func renameNode() {
+        guard let node = nodeToRename else { return }
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        Task {
+            do {
+                let newURL = try await appState.fileSystem.rename(at: node.url, to: name)
+                if let open = appState.openDocuments.first(where: { $0.fileURL == node.url }) {
+                    appState.closeDocument(open.id)
+                }
+                // Update expansion key if folder was expanded
+                if expandedFolders.remove(node.url.path) != nil {
+                    expandedFolders.insert(newURL.path)
                 }
                 await appState.refreshFileTree()
             } catch {
-                print("Error paste: \(error)")
+                errorMessage = error.localizedDescription
+            }
+            nodeToRename = nil
+        }
+    }
+    
+    private func deleteNode(_ node: FileNode) {
+        Task {
+            do {
+                try await appState.fileSystem.delete(at: node.url)
+                if let open = appState.openDocuments.first(where: { $0.fileURL == node.url }) {
+                    appState.closeDocument(open.id)
+                }
+                expandedFolders.remove(node.url.path)
+                if clipboardURL == node.url {
+                    clipboardURL = nil
+                    clipboardIsCut = false
+                }
+                await appState.refreshFileTree()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
+    private func pasteClipboard(into directory: URL?) {
+        guard let src = clipboardURL else {
+            errorMessage = "No hay nada en el portapapeles."
+            return
+        }
+        guard let dir = directory else {
+            errorMessage = "No hay carpeta destino."
+            return
+        }
+        // Prevent pasting a folder into itself or its descendant
+        if src.path == dir.path || dir.path.hasPrefix(src.path + "/") {
+            errorMessage = "No se puede pegar una carpeta dentro de sí misma."
+            return
+        }
+        Task {
+            do {
+                if clipboardIsCut {
+                    _ = try await appState.fileSystem.move(item: src, to: dir)
+                    clipboardURL = nil
+                    clipboardIsCut = false
+                } else {
+                    _ = try await appState.fileSystem.copy(item: src, to: dir)
+                }
+                expandedFolders.insert(dir.path)
+                await appState.refreshFileTree()
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
     }

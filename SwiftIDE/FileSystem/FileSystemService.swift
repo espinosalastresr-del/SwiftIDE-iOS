@@ -61,15 +61,7 @@ actor FileSystemService {
             )
         }
         
-        let mainContent = """
-        //
-        //  \(safeName).swift
-        //  \(safeName)
-        //
-        
-        import Foundation
-        
-        """
+        let mainContent = "//\n//  \(safeName).swift\n//  \(safeName)\n//\n\nimport Foundation\n\n"
         try mainContent.write(to: projectURL.appendingPathComponent("\(safeName).swift"), atomically: true, encoding: .utf8)
         
         let contentView = """
@@ -103,6 +95,29 @@ actor FileSystemService {
         return Project(name: safeName, rootURL: projectURL)
     }
     
+    func renameProject(_ project: Project, to newName: String) throws {
+        let safeName = sanitize(newName)
+        guard !safeName.isEmpty else { throw FileSystemError.invalidName }
+        let newURL = projectsDirectory.appendingPathComponent(safeName, isDirectory: true)
+        guard !fileManager.fileExists(atPath: newURL.path) else {
+            throw FileSystemError.alreadyExists
+        }
+        try fileManager.moveItem(at: project.rootURL, to: newURL)
+        
+        // Update metadata
+        let metaURL = newURL.appendingPathComponent(".swiftide/metadata.json")
+        if var meta = try? JSONDecoder().decode(ProjectMetadata.self, from: Data(contentsOf: metaURL)) {
+            meta.name = safeName
+            meta.modifiedAt = Date()
+            try JSONEncoder().encode(meta).write(to: metaURL)
+        } else {
+            let metaDir = newURL.appendingPathComponent(".swiftide", isDirectory: true)
+            try? fileManager.createDirectory(at: metaDir, withIntermediateDirectories: true)
+            let meta = ProjectMetadata(name: safeName, createdAt: Date(), modifiedAt: Date())
+            try? JSONEncoder().encode(meta).write(to: metaDir.appendingPathComponent("metadata.json"))
+        }
+    }
+    
     func deleteProject(_ project: Project) throws {
         try fileManager.removeItem(at: project.rootURL)
     }
@@ -118,13 +133,11 @@ actor FileSystemService {
         for itemURL in contents.sorted(by: { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }) {
             let type = FileNode.type(for: itemURL)
             var node = FileNode(name: itemURL.lastPathComponent, url: itemURL, type: type)
-            
             if type == .folder {
                 node.children = try? loadFileTree(at: itemURL)
             }
             nodes.append(node)
         }
-        // Folders first, then files
         return nodes.sorted { a, b in
             if a.type == .folder && b.type != .folder { return true }
             if a.type != .folder && b.type == .folder { return false }
@@ -147,7 +160,6 @@ actor FileSystemService {
         }
         let initial: String
         if name.hasSuffix(".swift") && content.isEmpty {
-            let base = name.replacingOccurrences(of: ".swift", with: "")
             initial = "//\n//  \(name)\n//\n\nimport Foundation\n\n"
         } else {
             initial = content
