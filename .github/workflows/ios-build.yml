@@ -31,13 +31,20 @@ jobs:
             sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           fi
           xcodebuild -version
-          xcodebuild -showsdks
 
-      - name: Show available schemes and destinations
+      - name: Install XcodeGen
         run: |
+          brew install xcodegen || true
+          which xcodegen
+          xcodegen --version
+
+      - name: Generate Xcode project with XcodeGen
+        run: |
+          rm -rf SwiftIDE.xcodeproj
+          xcodegen generate --spec project.yml
+          echo "Generated project:"
+          ls -la SwiftIDE.xcodeproj/
           xcodebuild -list -project SwiftIDE.xcodeproj
-          echo "---"
-          xcodebuild -showdestinations -project SwiftIDE.xcodeproj -scheme SwiftIDE || true
 
       - name: Build for Simulator (Debug)
         run: |
@@ -51,7 +58,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            | tee build-sim.log
+            2>&1 | tee build-sim.log
 
       - name: Archive (Release) for device
         run: |
@@ -67,19 +74,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            | tee build-archive.log
+            2>&1 | tee build-archive.log
 
       - name: Package IPA
         run: |
           set -e
-          if [ ! -d "build/SwiftIDE.xcarchive/Products/Applications/SwiftIDE.app" ]; then
+          APP_PATH="build/SwiftIDE.xcarchive/Products/Applications/SwiftIDE.app"
+          if [ ! -d "$APP_PATH" ]; then
             echo "ERROR: .app not found in archive"
             find build -type d -name "*.app" || true
             ls -laR build || true
             exit 1
           fi
           mkdir -p build/Payload
-          cp -R build/SwiftIDE.xcarchive/Products/Applications/SwiftIDE.app build/Payload/
+          cp -R "$APP_PATH" build/Payload/
           cd build
           zip -r SwiftIDE.ipa Payload
           ls -lh SwiftIDE.ipa
