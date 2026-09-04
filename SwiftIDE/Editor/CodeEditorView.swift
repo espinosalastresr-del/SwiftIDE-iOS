@@ -119,8 +119,8 @@ final class CodeTextView: UITextView {
     }
     
     private func drawLineNumbers() {
-        guard let layoutManager = layoutManager as NSLayoutManager?,
-              let textStorage = textStorage else { return }
+        let layoutManager = self.layoutManager
+        let textStorage = self.textStorage
         
         let theme = SyntaxTheme.dark
         let attrs: [NSAttributedString.Key: Any] = [
