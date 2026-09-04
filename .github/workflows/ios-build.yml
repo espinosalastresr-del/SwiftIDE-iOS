@@ -21,7 +21,6 @@ jobs:
         run: |
           echo "Available Xcodes:"
           ls /Applications | grep -i xcode || true
-          # Prefer a stable recent Xcode
           if [ -d "/Applications/Xcode_16.2.app" ]; then
             sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
           elif [ -d "/Applications/Xcode_16.1.app" ]; then
@@ -33,80 +32,6 @@ jobs:
           fi
           xcodebuild -version
           xcodebuild -showsdks
-
-      - name: Create shared scheme if missing
-        run: |
-          mkdir -p SwiftIDE.xcodeproj/xcshareddata/xcschemes
-          cat > SwiftIDE.xcodeproj/xcshareddata/xcschemes/SwiftIDE.xcscheme << 'SCHEME'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Scheme
-             LastUpgradeVersion = "1600"
-             version = "1.7">
-             <BuildAction
-                parallelizeBuildables = "YES"
-                buildImplicitDependencies = "YES">
-                <BuildActionEntries>
-                   <BuildActionEntry
-                      buildForTesting = "YES"
-                      buildForRunning = "YES"
-                      buildForProfiling = "YES"
-                      buildForArchiving = "YES"
-                      buildForAnalyzing = "YES">
-                      <BuildableReference
-                         BuildableIdentifier = "primary"
-                         BlueprintIdentifier = "F10000000000000000000001"
-                         BuildableName = "SwiftIDE.app"
-                         BlueprintName = "SwiftIDE"
-                         ReferencedContainer = "container:SwiftIDE.xcodeproj">
-                      </BuildableReference>
-                   </BuildActionEntry>
-                </BuildActionEntries>
-             </BuildAction>
-             <TestAction
-                buildConfiguration = "Debug"
-                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-                shouldUseLaunchSchemeArgsEnv = "YES">
-             </TestAction>
-             <LaunchAction
-                buildConfiguration = "Debug"
-                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-                launchStyle = "0"
-                useCustomWorkingDirectory = "NO"
-                ignoresPersistentStateOnLaunch = "NO"
-                debugDocumentVersioning = "YES"
-                debugServiceExtension = "internal"
-                allowLocationSimulation = "YES">
-                <BuildableProductRunnable
-                   runnableDebuggingMode = "0">
-                   <BuildableReference
-                      BuildableIdentifier = "primary"
-                      BlueprintIdentifier = "F10000000000000000000001"
-                      BuildableName = "SwiftIDE.app"
-                      BlueprintName = "SwiftIDE"
-                      ReferencedContainer = "container:SwiftIDE.xcodeproj">
-                   </BuildableReference>
-                </BuildableProductRunnable>
-             </LaunchAction>
-             <ProfileAction
-                buildConfiguration = "Release"
-                shouldUseLaunchSchemeArgsEnv = "YES"
-                savedToolIdentifier = ""
-                useCustomWorkingDirectory = "NO"
-                debugDocumentVersioning = "YES">
-             </ProfileAction>
-             <AnalyzeAction
-                buildConfiguration = "Debug">
-             </AnalyzeAction>
-             <ArchiveAction
-                buildConfiguration = "Release"
-                revealArchiveInOrganizer = "YES">
-             </ArchiveAction>
-          </Scheme>
-SCHEME
-          echo "Shared scheme created"
-          ls -la SwiftIDE.xcodeproj/xcshareddata/xcschemes/
 
       - name: Show available schemes and destinations
         run: |
@@ -127,7 +52,6 @@ SCHEME
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             | tee build-sim.log
-        continue-on-error: false
 
       - name: Archive (Release) for device
         run: |
