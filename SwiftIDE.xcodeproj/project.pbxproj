@@ -1,0 +1,415 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* SwiftIDEApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* SwiftIDEApp.swift */; };
+		A10000000000000000000002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* AppState.swift */; };
+		A10000000000000000000003 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Project.swift */; };
+		A10000000000000000000004 /* EditorDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* EditorDocument.swift */; };
+		A10000000000000000000005 /* FileNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* FileNode.swift */; };
+		A10000000000000000000006 /* FileSystemService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* FileSystemService.swift */; };
+		A10000000000000000000007 /* WorkspaceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* WorkspaceManager.swift */; };
+		A10000000000000000000008 /* PersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* PersistenceService.swift */; };
+		A10000000000000000000009 /* SwiftToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* SwiftToken.swift */; };
+		A1000000000000000000000A /* SwiftLexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* SwiftLexer.swift */; };
+		A1000000000000000000000B /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* SyntaxHighlighter.swift */; };
+		A1000000000000000000000C /* CodeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* CodeEditorView.swift */; };
+		A1000000000000000000000D /* CompletionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* CompletionEngine.swift */; };
+		A1000000000000000000000E /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* SearchService.swift */; };
+		A1000000000000000000000F /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* RootView.swift */; };
+		A10000000000000000000010 /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* ProjectListView.swift */; };
+		A10000000000000000000011 /* EditorWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* EditorWorkspaceView.swift */; };
+		A10000000000000000000012 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* FileBrowserView.swift */; };
+		A10000000000000000000013 /* SearchReplaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* SearchReplaceView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000001 /* SwiftIDEApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftIDEApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* EditorDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorDocument.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* FileNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNode.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* FileSystemService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystemService.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* WorkspaceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceManager.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* PersistenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceService.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* SwiftToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftToken.swift; sourceTree = "<group>"; };
+		B1000000000000000000000A /* SwiftLexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftLexer.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* SyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlighter.swift; sourceTree = "<group>"; };
+		B1000000000000000000000C /* CodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeEditorView.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* CompletionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionEngine.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchService.swift; sourceTree = "<group>"; };
+		B1000000000000000000000F /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* ProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* EditorWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorWorkspaceView.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserView.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* SearchReplaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchReplaceView.swift; sourceTree = "<group>"; };
+		C10000000000000000000001 /* SwiftIDE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftIDE.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D10000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000002 /* SwiftIDE */,
+				E1000000000000000000000A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E10000000000000000000002 /* SwiftIDE */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000003 /* App */,
+				E10000000000000000000004 /* Models */,
+				E10000000000000000000005 /* FileSystem */,
+				E10000000000000000000006 /* Workspace */,
+				E10000000000000000000007 /* Persistence */,
+				E10000000000000000000008 /* Syntax */,
+				E10000000000000000000009 /* Editor */,
+				E1000000000000000000000B /* Completion */,
+				E1000000000000000000000C /* Search */,
+				E1000000000000000000000D /* Features */,
+				E1000000000000000000000E /* Resources */,
+			);
+			path = SwiftIDE;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* SwiftIDEApp.swift */,
+				B10000000000000000000002 /* AppState.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000004 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000003 /* Project.swift */,
+				B10000000000000000000004 /* EditorDocument.swift */,
+				B10000000000000000000005 /* FileNode.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000005 /* FileSystem */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000006 /* FileSystemService.swift */,
+			);
+			path = FileSystem;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000006 /* Workspace */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000007 /* WorkspaceManager.swift */,
+			);
+			path = Workspace;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000007 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000008 /* PersistenceService.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000008 /* Syntax */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000009 /* SwiftToken.swift */,
+				B1000000000000000000000A /* SwiftLexer.swift */,
+				B1000000000000000000000B /* SyntaxHighlighter.swift */,
+			);
+			path = Syntax;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000009 /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000C /* CodeEditorView.swift */,
+			);
+			path = Editor;
+			sourceTree = "<group>";
+		};
+		E1000000000000000000000A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000001 /* SwiftIDE.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E1000000000000000000000B /* Completion */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000D /* CompletionEngine.swift */,
+			);
+			path = Completion;
+			sourceTree = "<group>";
+		};
+		E1000000000000000000000C /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000E /* SearchService.swift */,
+			);
+			path = Search;
+			sourceTree = "<group>";
+		};
+		E1000000000000000000000D /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000F /* RootView.swift */,
+				B10000000000000000000010 /* ProjectListView.swift */,
+				B10000000000000000000011 /* EditorWorkspaceView.swift */,
+				B10000000000000000000012 /* FileBrowserView.swift */,
+				B10000000000000000000013 /* SearchReplaceView.swift */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		E1000000000000000000000E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000002 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10000000000000000000001 /* SwiftIDE */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10000000000000000000004 /* Build configuration list for PBXNativeTarget "SwiftIDE" */;
+			buildPhases = (
+				F10000000000000000000002 /* Sources */,
+				D10000000000000000000001 /* Frameworks */,
+				F10000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SwiftIDE;
+			productName = SwiftIDE;
+			productReference = C10000000000000000000001 /* SwiftIDE.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F10000000000000000000005 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					F10000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = F10000000000000000000006 /* Build configuration list for PBXProject "SwiftIDE" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E10000000000000000000001;
+			productRefGroup = E1000000000000000000000A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F10000000000000000000001 /* SwiftIDE */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F10000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* SwiftIDEApp.swift in Sources */,
+				A10000000000000000000002 /* AppState.swift in Sources */,
+				A10000000000000000000003 /* Project.swift in Sources */,
+				A10000000000000000000004 /* EditorDocument.swift in Sources */,
+				A10000000000000000000005 /* FileNode.swift in Sources */,
+				A10000000000000000000006 /* FileSystemService.swift in Sources */,
+				A10000000000000000000007 /* WorkspaceManager.swift in Sources */,
+				A10000000000000000000008 /* PersistenceService.swift in Sources */,
+				A10000000000000000000009 /* SwiftToken.swift in Sources */,
+				A1000000000000000000000A /* SwiftLexer.swift in Sources */,
+				A1000000000000000000000B /* SyntaxHighlighter.swift in Sources */,
+				A1000000000000000000000C /* CodeEditorView.swift in Sources */,
+				A1000000000000000000000D /* CompletionEngine.swift in Sources */,
+				A1000000000000000000000E /* SearchService.swift in Sources */,
+				A1000000000000000000000F /* RootView.swift in Sources */,
+				A10000000000000000000010 /* ProjectListView.swift in Sources */,
+				A10000000000000000000011 /* EditorWorkspaceView.swift in Sources */,
+				A10000000000000000000012 /* FileBrowserView.swift in Sources */,
+				A10000000000000000000013 /* SearchReplaceView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		G10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		G10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		G10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SwiftIDE/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftide.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		G10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SwiftIDE/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftide.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F10000000000000000000004 /* Build configuration list for PBXNativeTarget "SwiftIDE" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				G10000000000000000000003 /* Debug */,
+				G10000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10000000000000000000006 /* Build configuration list for PBXProject "SwiftIDE" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				G10000000000000000000001 /* Debug */,
+				G10000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F10000000000000000000005 /* Project object */;
+}
