@@ -124,7 +124,12 @@ actor FileSystemService {
             }
             nodes.append(node)
         }
-        return nodes
+        // Folders first, then files
+        return nodes.sorted { a, b in
+            if a.type == .folder && b.type != .folder { return true }
+            if a.type != .folder && b.type == .folder { return false }
+            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+        }
     }
     
     func readFile(at url: URL) throws -> String {
@@ -140,7 +145,14 @@ actor FileSystemService {
         guard !fileManager.fileExists(atPath: url.path) else {
             throw FileSystemError.alreadyExists
         }
-        try content.write(to: url, atomically: true, encoding: .utf8)
+        let initial: String
+        if name.hasSuffix(".swift") && content.isEmpty {
+            let base = name.replacingOccurrences(of: ".swift", with: "")
+            initial = "//\n//  \(name)\n//\n\nimport Foundation\n\n"
+        } else {
+            initial = content
+        }
+        try initial.write(to: url, atomically: true, encoding: .utf8)
         return url
     }
     
@@ -155,6 +167,9 @@ actor FileSystemService {
     
     func rename(at url: URL, to newName: String) throws -> URL {
         let newURL = url.deletingLastPathComponent().appendingPathComponent(newName)
+        guard !fileManager.fileExists(atPath: newURL.path) else {
+            throw FileSystemError.alreadyExists
+        }
         try fileManager.moveItem(at: url, to: newURL)
         return newURL
     }
@@ -165,7 +180,24 @@ actor FileSystemService {
     
     func move(item url: URL, to directory: URL) throws -> URL {
         let dest = directory.appendingPathComponent(url.lastPathComponent)
+        if fileManager.fileExists(atPath: dest.path) {
+            throw FileSystemError.alreadyExists
+        }
         try fileManager.moveItem(at: url, to: dest)
+        return dest
+    }
+    
+    func copy(item url: URL, to directory: URL) throws -> URL {
+        var dest = directory.appendingPathComponent(url.lastPathComponent)
+        var counter = 1
+        let baseName = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        while fileManager.fileExists(atPath: dest.path) {
+            let newName = ext.isEmpty ? "\(baseName) copia \(counter)" : "\(baseName) copia \(counter).\(ext)"
+            dest = directory.appendingPathComponent(newName)
+            counter += 1
+        }
+        try fileManager.copyItem(at: url, to: dest)
         return dest
     }
     

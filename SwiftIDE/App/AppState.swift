@@ -8,10 +8,23 @@ final class AppState: ObservableObject {
     @Published var activeDocumentID: UUID?
     @Published var isFileBrowserVisible: Bool = true
     @Published var showProjectPicker: Bool = false
+    /// Bumped whenever the file tree should refresh the UI.
+    @Published var fileTreeVersion: Int = 0
     
     let workspaceManager = WorkspaceManager()
     let fileSystem = FileSystemService()
     let persistence = PersistenceService()
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        // Forward WorkspaceManager changes so views observing AppState update.
+        workspaceManager.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+    }
     
     var activeDocument: EditorDocument? {
         openDocuments.first { $0.id == activeDocumentID }
@@ -48,5 +61,11 @@ final class AppState: ObservableObject {
     func closeAllDocuments() {
         openDocuments = []
         activeDocumentID = nil
+    }
+    
+    func refreshFileTree() async {
+        guard let project = currentProject else { return }
+        await workspaceManager.loadFileTree(for: project)
+        fileTreeVersion += 1
     }
 }

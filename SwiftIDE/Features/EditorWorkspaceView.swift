@@ -4,7 +4,6 @@ struct EditorWorkspaceView: View {
     @EnvironmentObject var appState: AppState
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showSearch = false
-    @State private var searchQuery = ""
     
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -23,24 +22,24 @@ struct EditorWorkspaceView: View {
                 }
         } detail: {
             // Editor area
-            VStack(spacing: 0) {
-                // Tabs
-                if !appState.openDocuments.isEmpty {
-                    DocumentTabsView()
-                }
-                
-                // Editor or empty state
+            Group {
                 if let doc = appState.activeDocument {
-                    CodeEditorContainer(document: doc)
+                    VStack(spacing: 0) {
+                        if appState.openDocuments.count > 1 {
+                            DocumentTabsView()
+                        }
+                        CodeEditorContainer(document: doc)
+                    }
                 } else {
                     ContentUnavailableView(
                         "Ningún archivo abierto",
                         systemImage: "doc.text",
-                        description: Text("Selecciona un archivo en el explorador para empezar a editar.")
+                        description: Text("Toca un archivo en el explorador para editarlo.")
                     )
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(appState.activeDocument?.fileName ?? "Editor")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     if appState.activeDocument != nil {
@@ -63,6 +62,12 @@ struct EditorWorkspaceView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        // On iPhone, prefer showing the detail when a document is opened
+        .onChange(of: appState.activeDocumentID) { _, newID in
+            if newID != nil {
+                columnVisibility = .detailOnly
+            }
+        }
     }
     
     private func saveActiveDocument() {
@@ -98,7 +103,7 @@ struct DocumentTabsView: View {
 }
 
 struct DocumentTab: View {
-    let document: EditorDocument
+    @ObservedObject var document: EditorDocument
     let isActive: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
@@ -139,7 +144,7 @@ struct CodeEditorContainer: View {
     @State private var saveTask: Task<Void, Never>?
     
     var body: some View {
-        CodeEditorView(text: $document.content, isDirty: $document.isDirty) { newText in
+        CodeEditorView(text: $document.content, isDirty: $document.isDirty) { _ in
             document.markDirty()
             scheduleAutosave()
         }
