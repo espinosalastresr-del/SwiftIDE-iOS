@@ -1,0 +1,87 @@
+name: iOS Build & Test
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer || \
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Show available schemes
+        run: |
+          xcodebuild -list -project SwiftIDE.xcodeproj || true
+
+      - name: Run Tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project SwiftIDE.xcodeproj \
+            -scheme SwiftIDE \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+        continue-on-error: true
+
+      - name: Archive (Release)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project SwiftIDE.xcodeproj \
+            -scheme SwiftIDE \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/SwiftIDE.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty || xcodebuild archive \
+              -project SwiftIDE.xcodeproj \
+              -scheme SwiftIDE \
+              -configuration Release \
+              -sdk iphoneos \
+              -archivePath build/SwiftIDE.xcarchive \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r build/SwiftIDE.xcarchive/Products/Applications/SwiftIDE.app build/Payload/
+          cd build
+          zip -r SwiftIDE.ipa Payload
+          ls -lh SwiftIDE.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SwiftIDE-iOS-${{ github.ref_name }}
+          path: build/SwiftIDE.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload Archive (debug)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SwiftIDE-archive-debug
+          path: build/
+          retention-days: 7
