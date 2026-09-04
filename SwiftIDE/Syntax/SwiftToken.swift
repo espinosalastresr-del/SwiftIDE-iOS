@@ -27,7 +27,7 @@ struct SwiftToken {
 struct SyntaxTheme {
     static let dark = SyntaxTheme(
         keyword: UIColor(red: 0.97, green: 0.46, blue: 0.79, alpha: 1),
-        type: UIColor(red: 0.36, green: 0.80, blue: 0.95, alpha: 1),
+        typeColor: UIColor(red: 0.36, green: 0.80, blue: 0.95, alpha: 1),
         function: UIColor(red: 0.67, green: 0.87, blue: 0.53, alpha: 1),
         property: UIColor(red: 0.78, green: 0.63, blue: 0.95, alpha: 1),
         variable: UIColor(white: 0.92, alpha: 1),
@@ -48,7 +48,7 @@ struct SyntaxTheme {
     )
     
     let keyword: UIColor
-    let type: UIColor
+    let typeColor: UIColor
     let function: UIColor
     let property: UIColor
     let variable: UIColor
@@ -67,10 +67,10 @@ struct SyntaxTheme {
     let lineNumber: UIColor
     let selection: UIColor
     
-    func color(for type: SwiftTokenType) -> UIColor {
-        switch type {
+    func color(for tokenType: SwiftTokenType) -> UIColor {
+        switch tokenType {
         case .keyword: return keyword
-        case .type: return type
+        case .type: return typeColor
         case .function: return function
         case .property: return property
         case .variable: return variable
