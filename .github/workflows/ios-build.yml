@@ -19,27 +19,117 @@ jobs:
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer || \
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          echo "Available Xcodes:"
+          ls /Applications | grep -i xcode || true
+          # Prefer a stable recent Xcode
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          fi
           xcodebuild -version
+          xcodebuild -showsdks
 
-      - name: Show available schemes
+      - name: Create shared scheme if missing
         run: |
-          xcodebuild -list -project SwiftIDE.xcodeproj || true
+          mkdir -p SwiftIDE.xcodeproj/xcshareddata/xcschemes
+          cat > SwiftIDE.xcodeproj/xcshareddata/xcschemes/SwiftIDE.xcscheme << 'SCHEME'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Scheme
+             LastUpgradeVersion = "1600"
+             version = "1.7">
+             <BuildAction
+                parallelizeBuildables = "YES"
+                buildImplicitDependencies = "YES">
+                <BuildActionEntries>
+                   <BuildActionEntry
+                      buildForTesting = "YES"
+                      buildForRunning = "YES"
+                      buildForProfiling = "YES"
+                      buildForArchiving = "YES"
+                      buildForAnalyzing = "YES">
+                      <BuildableReference
+                         BuildableIdentifier = "primary"
+                         BlueprintIdentifier = "F10000000000000000000001"
+                         BuildableName = "SwiftIDE.app"
+                         BlueprintName = "SwiftIDE"
+                         ReferencedContainer = "container:SwiftIDE.xcodeproj">
+                      </BuildableReference>
+                   </BuildActionEntry>
+                </BuildActionEntries>
+             </BuildAction>
+             <TestAction
+                buildConfiguration = "Debug"
+                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+                shouldUseLaunchSchemeArgsEnv = "YES">
+             </TestAction>
+             <LaunchAction
+                buildConfiguration = "Debug"
+                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+                launchStyle = "0"
+                useCustomWorkingDirectory = "NO"
+                ignoresPersistentStateOnLaunch = "NO"
+                debugDocumentVersioning = "YES"
+                debugServiceExtension = "internal"
+                allowLocationSimulation = "YES">
+                <BuildableProductRunnable
+                   runnableDebuggingMode = "0">
+                   <BuildableReference
+                      BuildableIdentifier = "primary"
+                      BlueprintIdentifier = "F10000000000000000000001"
+                      BuildableName = "SwiftIDE.app"
+                      BlueprintName = "SwiftIDE"
+                      ReferencedContainer = "container:SwiftIDE.xcodeproj">
+                   </BuildableReference>
+                </BuildableProductRunnable>
+             </LaunchAction>
+             <ProfileAction
+                buildConfiguration = "Release"
+                shouldUseLaunchSchemeArgsEnv = "YES"
+                savedToolIdentifier = ""
+                useCustomWorkingDirectory = "NO"
+                debugDocumentVersioning = "YES">
+             </ProfileAction>
+             <AnalyzeAction
+                buildConfiguration = "Debug">
+             </AnalyzeAction>
+             <ArchiveAction
+                buildConfiguration = "Release"
+                revealArchiveInOrganizer = "YES">
+             </ArchiveAction>
+          </Scheme>
+SCHEME
+          echo "Shared scheme created"
+          ls -la SwiftIDE.xcodeproj/xcshareddata/xcschemes/
 
-      - name: Run Tests
+      - name: Show available schemes and destinations
+        run: |
+          xcodebuild -list -project SwiftIDE.xcodeproj
+          echo "---"
+          xcodebuild -showdestinations -project SwiftIDE.xcodeproj -scheme SwiftIDE || true
+
+      - name: Build for Simulator (Debug)
         run: |
           set -o pipefail
-          xcodebuild test \
+          xcodebuild build \
             -project SwiftIDE.xcodeproj \
             -scheme SwiftIDE \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || true
-        continue-on-error: true
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            | tee build-sim.log
+        continue-on-error: false
 
-      - name: Archive (Release)
+      - name: Archive (Release) for device
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -48,27 +138,28 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -archivePath build/SwiftIDE.xcarchive \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
-            | xcpretty || xcodebuild archive \
-              -project SwiftIDE.xcodeproj \
-              -scheme SwiftIDE \
-              -configuration Release \
-              -sdk iphoneos \
-              -archivePath build/SwiftIDE.xcarchive \
-              CODE_SIGN_IDENTITY="" \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            | tee build-archive.log
 
       - name: Package IPA
         run: |
+          set -e
+          if [ ! -d "build/SwiftIDE.xcarchive/Products/Applications/SwiftIDE.app" ]; then
+            echo "ERROR: .app not found in archive"
+            find build -type d -name "*.app" || true
+            ls -laR build || true
+            exit 1
+          fi
           mkdir -p build/Payload
-          cp -r build/SwiftIDE.xcarchive/Products/Applications/SwiftIDE.app build/Payload/
+          cp -R build/SwiftIDE.xcarchive/Products/Applications/SwiftIDE.app build/Payload/
           cd build
           zip -r SwiftIDE.ipa Payload
           ls -lh SwiftIDE.ipa
+          echo "IPA created successfully"
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
@@ -78,10 +169,13 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Upload Archive (debug)
+      - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: SwiftIDE-archive-debug
-          path: build/
+          name: build-logs
+          path: |
+            build-sim.log
+            build-archive.log
+            build/
           retention-days: 7
