@@ -31,9 +31,9 @@ struct CodeEditorView: UIViewRepresentable {
         textView.tintColor = UIColor.systemBlue
         textView.allowsEditingTextAttributes = false
         
-        // Undo más granular: no agrupar todo el ciclo de evento en un solo paso
+        // Undo nativo de UITextView (groupsByEvent = true por defecto).
+        // NO usar groupsByEvent = false: exige beginUndoGrouping manual y crashea al escribir.
         textView.undoManager?.levelsOfUndo = 100
-        textView.undoManager?.groupsByEvent = false
         
         let accessory = CompletionAccessoryView()
         accessory.onSelect = { [weak coordinator = context.coordinator] item in
