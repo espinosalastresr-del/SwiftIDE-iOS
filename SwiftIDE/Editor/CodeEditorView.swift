@@ -46,34 +46,43 @@ struct CodeEditorView: UIViewRepresentable {
         context.coordinator.accessory = accessory
         context.coordinator.editorActions = editorActions
         
-        // Initial content without fighting undo manager
+        context.coordinator.isApplyingExternalText = true
         textView.text = text
         context.coordinator.recolor(textView)
+        context.coordinator.isApplyingExternalText = false
+        
         CompletionEngine.shared.indexSource(text)
         editorActions?.attach(textView)
+        context.coordinator.syncAccessoryUndo(textView)
         
         return textView
     }
     
     func updateUIView(_ uiView: CodeTextView, context: Context) {
         context.coordinator.editorActions = editorActions
-        // Only push external text changes (e.g. open file) when not actively typing
-        if !context.coordinator.isEditing, uiView.text != text {
+        context.coordinator.parent = self
+        
+        // Solo sincronizar texto externo cuando NO estamos editando.
+        // No llamar editorActions.refresh() aquí: publicaba @Published y
+        // provocaba un bucle infinito updateUIView → body → updateUIView.
+        if !context.coordinator.isEditing,
+           !context.coordinator.isApplyingExternalText,
+           uiView.text != text {
             context.coordinator.isApplyingExternalText = true
+            let selected = uiView.selectedRange
             uiView.text = text
+            if selected.location <= (text as NSString).length {
+                uiView.selectedRange = selected
+            }
             context.coordinator.recolor(uiView)
             context.coordinator.isApplyingExternalText = false
             CompletionEngine.shared.indexSource(text)
-            editorActions?.attach(uiView)
         }
-        editorActions?.refresh()
-        context.coordinator.syncAccessoryUndo(uiView)
     }
     
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: CodeEditorView
         var isEditing = false
-        /// True while we set text from outside (open file / binding) so we don't mark dirty incorrectly.
         var isApplyingExternalText = false
         private let lexer = SwiftLexer()
         private var debounceWorkItem: DispatchWorkItem?
@@ -85,7 +94,7 @@ struct CodeEditorView: UIViewRepresentable {
             self.parent = parent
         }
         
-        /// Solo recolorea atributos. No llama disable/enableUndoRegistration (evita el crash).
+        /// Solo atributos de color. No toca UndoManager.
         func recolor(_ textView: CodeTextView) {
             let storage = textView.textStorage
             let fullLength = storage.length
@@ -97,16 +106,14 @@ struct CodeEditorView: UIViewRepresentable {
             let selectedRange = textView.selectedRange
             let fullRange = NSRange(location: 0, length: fullLength)
             let baseFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-            let plain = SyntaxTheme.dark.plain
             
             storage.beginEditing()
             storage.setAttributes([
                 .font: baseFont,
-                .foregroundColor: plain
+                .foregroundColor: SyntaxTheme.dark.plain
             ], range: fullRange)
             
-            let text = storage.string
-            let tokens = lexer.tokenize(text)
+            let tokens = lexer.tokenize(storage.string)
             for token in tokens {
                 let end = token.range.location + token.range.length
                 guard token.range.location >= 0, end <= fullLength else { continue }
@@ -118,7 +125,6 @@ struct CodeEditorView: UIViewRepresentable {
             }
             storage.endEditing()
             
-            // Restore caret without triggering extra layout loops
             if selectedRange.location <= fullLength {
                 let maxLen = max(0, fullLength - selectedRange.location)
                 textView.selectedRange = NSRange(
@@ -127,8 +133,6 @@ struct CodeEditorView: UIViewRepresentable {
                 )
             }
             textView.setNeedsDisplay()
-            syncAccessoryUndo(textView)
-            editorActions?.refresh()
         }
         
         func syncAccessoryUndo(_ textView: UITextView) {
@@ -158,6 +162,8 @@ struct CodeEditorView: UIViewRepresentable {
             parent.text = newText
             parent.isDirty = true
             parent.onTextChange?(newText)
+            
+            // Actualizar botones de undo (solo si cambian valores)
             editorActions?.refresh()
             syncAccessoryUndo(textView)
             
@@ -175,7 +181,7 @@ struct CodeEditorView: UIViewRepresentable {
         
         func textViewDidChangeSelection(_ textView: UITextView) {
             refreshCompletions(in: textView)
-            editorActions?.refresh()
+            // No publicar a SwiftUI en cada cambio de selección
             syncAccessoryUndo(textView)
         }
         
@@ -200,7 +206,6 @@ struct CodeEditorView: UIViewRepresentable {
             if textView.selectedRange != range {
                 textView.selectedRange = range
             }
-            // insertText entra en la pila nativa de undo
             textView.insertText(item.insertText)
         }
     }
