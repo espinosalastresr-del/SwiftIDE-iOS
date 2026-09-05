@@ -30,8 +30,6 @@ struct CodeEditorView: UIViewRepresentable {
         textView.keyboardAppearance = .dark
         textView.tintColor = UIColor.systemBlue
         textView.allowsEditingTextAttributes = false
-        
-        // Undo is enabled by default on UITextView
         textView.undoManager?.levelsOfUndo = 50
         
         let accessory = CompletionAccessoryView()
@@ -48,7 +46,9 @@ struct CodeEditorView: UIViewRepresentable {
         context.coordinator.accessory = accessory
         context.coordinator.editorActions = editorActions
         
-        context.coordinator.applyHighlighting(to: textView, text: text, registerUndo: false)
+        // Initial content without fighting undo manager
+        textView.text = text
+        context.coordinator.recolor(textView)
         CompletionEngine.shared.indexSource(text)
         editorActions?.attach(textView)
         
@@ -57,18 +57,25 @@ struct CodeEditorView: UIViewRepresentable {
     
     func updateUIView(_ uiView: CodeTextView, context: Context) {
         context.coordinator.editorActions = editorActions
-        if uiView.text != text && !context.coordinator.isEditing {
-            context.coordinator.applyHighlighting(to: uiView, text: text, registerUndo: false)
+        // Only push external text changes (e.g. open file) when not actively typing
+        if !context.coordinator.isEditing, uiView.text != text {
+            context.coordinator.isApplyingExternalText = true
+            uiView.text = text
+            context.coordinator.recolor(uiView)
+            context.coordinator.isApplyingExternalText = false
             CompletionEngine.shared.indexSource(text)
             editorActions?.attach(uiView)
         }
         editorActions?.refresh()
+        context.coordinator.syncAccessoryUndo(uiView)
     }
     
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: CodeEditorView
         var isEditing = false
-        private let highlighter = SyntaxHighlighter()
+        /// True while we set text from outside (open file / binding) so we don't mark dirty incorrectly.
+        var isApplyingExternalText = false
+        private let lexer = SwiftLexer()
         private var debounceWorkItem: DispatchWorkItem?
         private var completionWorkItem: DispatchWorkItem?
         weak var accessory: CompletionAccessoryView?
@@ -78,51 +85,56 @@ struct CodeEditorView: UIViewRepresentable {
             self.parent = parent
         }
         
-        /// Aplica resaltado sin destruir la pila de undo cuando es posible.
-        func applyHighlighting(to textView: CodeTextView, text: String, registerUndo: Bool) {
+        /// Solo recolorea atributos. No llama disable/enableUndoRegistration (evita el crash).
+        func recolor(_ textView: CodeTextView) {
+            let storage = textView.textStorage
+            let fullLength = storage.length
+            guard fullLength > 0 else {
+                textView.setNeedsDisplay()
+                return
+            }
+            
             let selectedRange = textView.selectedRange
-            let undo = textView.undoManager
+            let fullRange = NSRange(location: 0, length: fullLength)
+            let baseFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+            let plain = SyntaxTheme.dark.plain
             
-            if !registerUndo {
-                undo?.disableUndoRegistration()
+            storage.beginEditing()
+            storage.setAttributes([
+                .font: baseFont,
+                .foregroundColor: plain
+            ], range: fullRange)
+            
+            let text = storage.string
+            let tokens = lexer.tokenize(text)
+            for token in tokens {
+                let end = token.range.location + token.range.length
+                guard token.range.location >= 0, end <= fullLength else { continue }
+                storage.addAttribute(
+                    .foregroundColor,
+                    value: SyntaxTheme.dark.color(for: token.type),
+                    range: token.range
+                )
             }
+            storage.endEditing()
             
-            // Si el string es el mismo, solo actualizamos atributos (mejor para undo).
-            if textView.text == text {
-                let storage = textView.textStorage
-                storage.beginEditing()
-                let fullRange = NSRange(location: 0, length: storage.length)
-                let baseFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-                storage.setAttributes([
-                    .font: baseFont,
-                    .foregroundColor: SyntaxTheme.dark.plain
-                ], range: fullRange)
-                
-                let tokens = SwiftLexer().tokenize(text)
-                for token in tokens {
-                    guard token.range.location + token.range.length <= fullRange.length else { continue }
-                    storage.addAttribute(
-                        .foregroundColor,
-                        value: SyntaxTheme.dark.color(for: token.type),
-                        range: token.range
-                    )
-                }
-                storage.endEditing()
-            } else {
-                let attributed = highlighter.highlight(text: text)
-                textView.attributedText = attributed
+            // Restore caret without triggering extra layout loops
+            if selectedRange.location <= fullLength {
+                let maxLen = max(0, fullLength - selectedRange.location)
+                textView.selectedRange = NSRange(
+                    location: selectedRange.location,
+                    length: min(selectedRange.length, maxLen)
+                )
             }
-            
-            if !registerUndo {
-                undo?.enableUndoRegistration()
-            }
-            
-            textView.selectedRange = selectedRange
             textView.setNeedsDisplay()
+            syncAccessoryUndo(textView)
             editorActions?.refresh()
+        }
+        
+        func syncAccessoryUndo(_ textView: UITextView) {
             accessory?.updateUndoRedo(
-                canUndo: undo?.canUndo ?? false,
-                canRedo: undo?.canRedo ?? false
+                canUndo: textView.undoManager?.canUndo ?? false,
+                canRedo: textView.undoManager?.canRedo ?? false
             )
         }
         
@@ -131,6 +143,7 @@ struct CodeEditorView: UIViewRepresentable {
             editorActions?.attach(textView)
             refreshCompletions(in: textView)
             editorActions?.refresh()
+            syncAccessoryUndo(textView)
         }
         
         func textViewDidEndEditing(_ textView: UITextView) {
@@ -139,20 +152,19 @@ struct CodeEditorView: UIViewRepresentable {
         }
         
         func textViewDidChange(_ textView: UITextView) {
+            guard !isApplyingExternalText else { return }
+            
             let newText = textView.text ?? ""
             parent.text = newText
             parent.isDirty = true
             parent.onTextChange?(newText)
             editorActions?.refresh()
-            accessory?.updateUndoRedo(
-                canUndo: textView.undoManager?.canUndo ?? false,
-                canRedo: textView.undoManager?.canRedo ?? false
-            )
+            syncAccessoryUndo(textView)
             
             debounceWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                self.applyHighlighting(to: textView as! CodeTextView, text: newText, registerUndo: false)
+                self.recolor(textView as! CodeTextView)
                 CompletionEngine.shared.indexSource(newText)
             }
             debounceWorkItem = work
@@ -164,6 +176,7 @@ struct CodeEditorView: UIViewRepresentable {
         func textViewDidChangeSelection(_ textView: UITextView) {
             refreshCompletions(in: textView)
             editorActions?.refresh()
+            syncAccessoryUndo(textView)
         }
         
         private func refreshCompletions(in textView: UITextView) {
@@ -184,13 +197,11 @@ struct CodeEditorView: UIViewRepresentable {
             let text = textView.text ?? ""
             let cursor = textView.selectedRange.location
             let (_, range) = CompletionEngine.wordPrefix(in: text, cursor: cursor)
-            
-            // Usar replace del textView para que entre en la pila de undo
             if textView.selectedRange != range {
                 textView.selectedRange = range
             }
+            // insertText entra en la pila nativa de undo
             textView.insertText(item.insertText)
-            // textViewDidChange se encargará del resto
         }
     }
 }
@@ -229,7 +240,6 @@ final class CompletionAccessoryView: UIView {
         blur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(blur)
         
-        // Undo / Redo buttons
         configureIconButton(undoButton, systemName: "arrow.uturn.backward", action: #selector(undoTapped))
         configureIconButton(redoButton, systemName: "arrow.uturn.forward", action: #selector(redoTapped))
         undoButton.isEnabled = false
