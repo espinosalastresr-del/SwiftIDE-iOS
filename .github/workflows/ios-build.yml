@@ -21,16 +21,32 @@ jobs:
         run: |
           echo "Available Xcodes:"
           ls /Applications | grep -i xcode || true
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_16.0.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
-          else
-            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-          fi
+
+          # Prefer versions that usually ship with matching simulator runtimes on GH runners
+          for candidate in \
+            "/Applications/Xcode_16.4.app" \
+            "/Applications/Xcode_16.3.app" \
+            "/Applications/Xcode_16.2.app" \
+            "/Applications/Xcode_16.1.app" \
+            "/Applications/Xcode_16.0.app" \
+            "/Applications/Xcode_26.3.app" \
+            "/Applications/Xcode_26.2.app" \
+            "/Applications/Xcode_26.1.app" \
+            "/Applications/Xcode_26.0.app" \
+            "/Applications/Xcode.app"
+          do
+            if [ -d "$candidate" ]; then
+              echo "Selecting $candidate"
+              sudo xcode-select -s "$candidate/Contents/Developer"
+              break
+            fi
+          done
+
           xcodebuild -version
+          echo "Installed SDKs:"
+          xcodebuild -showsdks || true
+          echo "Simulators:"
+          xcrun simctl list devices available || true
 
       - name: Install XcodeGen
         run: |
@@ -46,13 +62,30 @@ jobs:
           ls -la SwiftIDE.xcodeproj/
           xcodebuild -list -project SwiftIDE.xcodeproj
 
+      - name: Resolve build destination
+        id: dest
+        run: |
+          # Try generic simulator first; fall back to first available iPhone simulator name
+          if xcodebuild -showdestinations -project SwiftIDE.xcodeproj -scheme SwiftIDE 2>/dev/null | grep -q "platform:iOS Simulator"; then
+            DEST='generic/platform=iOS Simulator'
+          else
+            NAME=$(xcrun simctl list devices available | grep -E "iPhone" | head -1 | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/' || true)
+            if [ -n "$NAME" ]; then
+              DEST="platform=iOS Simulator,id=$NAME"
+            else
+              DEST='generic/platform=iOS'
+            fi
+          fi
+          echo "Using destination: $DEST"
+          echo "destination=$DEST" >> "$GITHUB_OUTPUT"
+
       - name: Build for Simulator (Debug)
         run: |
           set -o pipefail
           xcodebuild build \
             -project SwiftIDE.xcodeproj \
             -scheme SwiftIDE \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "${{ steps.dest.outputs.destination }}" \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
