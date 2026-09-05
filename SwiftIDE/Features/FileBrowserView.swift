@@ -14,7 +14,6 @@ struct FileBrowserView: View {
     @State private var clipboardIsCut = false
     @State private var errorMessage: String?
     
-    /// Flattened visible rows based on expansion state.
     private var visibleRows: [(node: FileNode, depth: Int)] {
         var rows: [(FileNode, Int)] = []
         func walk(_ nodes: [FileNode], depth: Int) {
@@ -46,7 +45,7 @@ struct FileBrowserView: View {
                 }
             }
         }
-        .listStyle(.sidebar)
+        .listStyle(.plain)
         .id(appState.fileTreeVersion)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -109,8 +108,6 @@ struct FileBrowserView: View {
         }
     }
     
-    // MARK: - Row
-    
     @ViewBuilder
     private func fileRow(_ node: FileNode, depth: Int) -> some View {
         let isFolder = node.type == .folder
@@ -131,7 +128,6 @@ struct FileBrowserView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                // Indent
                 Color.clear.frame(width: CGFloat(depth) * 14)
                 
                 if isFolder {
@@ -154,8 +150,16 @@ struct FileBrowserView: View {
                     .strikethrough(isCut)
                 
                 Spacer()
+                
+                // Indicate if this file is currently open
+                if !isFolder && appState.openDocuments.contains(where: { $0.fileURL == node.url }) {
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 6, height: 6)
+                }
             }
             .contentShape(Rectangle())
+            .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -243,13 +247,12 @@ struct FileBrowserView: View {
         }
     }
     
-    // MARK: - Actions
-    
     private func openFile(_ node: FileNode) {
-        Task {
+        Task { @MainActor in
             do {
                 let doc = try await appState.workspaceManager.openFile(at: node.url)
                 appState.openDocument(doc)
+                // EditorWorkspaceView observes activeDocumentID and switches view
             } catch {
                 errorMessage = "No se pudo abrir: \(error.localizedDescription)"
             }
@@ -260,10 +263,9 @@ struct FileBrowserView: View {
         guard let dir = targetDirectory ?? appState.currentProject?.rootURL else { return }
         let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        Task {
+        Task { @MainActor in
             do {
                 let url = try await appState.fileSystem.createFile(named: name, in: dir)
-                // Auto-expand parent folder
                 expandedFolders.insert(dir.path)
                 await appState.refreshFileTree()
                 let doc = try await appState.workspaceManager.openFile(at: url)
@@ -299,7 +301,6 @@ struct FileBrowserView: View {
                 if let open = appState.openDocuments.first(where: { $0.fileURL == node.url }) {
                     appState.closeDocument(open.id)
                 }
-                // Update expansion key if folder was expanded
                 if expandedFolders.remove(node.url.path) != nil {
                     expandedFolders.insert(newURL.path)
                 }
@@ -339,7 +340,6 @@ struct FileBrowserView: View {
             errorMessage = "No hay carpeta destino."
             return
         }
-        // Prevent pasting a folder into itself or its descendant
         if src.path == dir.path || dir.path.hasPrefix(src.path + "/") {
             errorMessage = "No se puede pegar una carpeta dentro de sí misma."
             return

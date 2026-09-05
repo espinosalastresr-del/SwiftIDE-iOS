@@ -2,88 +2,107 @@ import SwiftUI
 
 struct EditorWorkspaceView: View {
     @EnvironmentObject var appState: AppState
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showSearch = false
+    @State private var showFileBrowser = true
     
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        // On iPhone, NavigationSplitView detail column is unreliable.
+        // Use explicit view switching instead.
+        Group {
+            if let doc = appState.activeDocument, !showFileBrowser {
+                editorView(for: doc)
+            } else {
+                fileBrowserView
+            }
+        }
+        .onChange(of: appState.activeDocumentID) { _, newID in
+            if newID != nil {
+                showFileBrowser = false
+            }
+        }
+    }
+    
+    // MARK: - File browser
+    
+    private var fileBrowserView: some View {
+        NavigationStack {
             FileBrowserView()
                 .navigationTitle(appState.currentProject?.name ?? "Proyecto")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button {
                             appState.currentProject = nil
                             appState.closeAllDocuments()
                         } label: {
-                            Image(systemName: "chevron.left")
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                Text("Proyectos")
+                            }
+                        }
+                    }
+                    
+                    if appState.activeDocument != nil {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button {
+                                showFileBrowser = false
+                            } label: {
+                                Label("Editor", systemImage: "doc.text")
+                            }
                         }
                     }
                 }
-        } detail: {
-            editorDetail
-        }
-        .navigationSplitViewStyle(.balanced)
-        .onChange(of: appState.activeDocumentID) { _, newID in
-            if newID != nil {
-                // Force detail column on iPhone after opening a file
-                withAnimation {
-                    columnVisibility = .detailOnly
-                }
-            }
         }
     }
     
-    @ViewBuilder
-    private var editorDetail: some View {
-        Group {
-            if let doc = appState.activeDocument {
-                VStack(spacing: 0) {
-                    if appState.openDocuments.count > 1 {
-                        DocumentTabsView()
-                    }
-                    CodeEditorContainer(document: doc)
+    // MARK: - Editor
+    
+    private func editorView(for document: EditorDocument) -> some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if appState.openDocuments.count > 1 {
+                    DocumentTabsView()
                 }
-            } else {
-                ContentUnavailableView(
-                    "Ningún archivo abierto",
-                    systemImage: "doc.text",
-                    description: Text("Toca un archivo en el explorador para editarlo.")
-                )
+                
+                CodeEditorContainer(document: document)
             }
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle(appState.activeDocument?.fileName ?? "Editor")
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                if appState.activeDocument != nil {
-                    Button { showSearch = true } label: {
+            .navigationTitle(document.fileName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showFileBrowser = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Archivos")
+                        }
+                    }
+                }
+                
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        showSearch = true
+                    } label: {
                         Image(systemName: "magnifyingglass")
                     }
-                    Button { saveActiveDocument() } label: {
-                        Image(systemName: "square.and.arrow.down")
-                    }
-                }
-            }
-            // Allow going back to sidebar on compact devices
-            ToolbarItem(placement: .topBarLeading) {
-                if appState.activeDocument != nil {
+                    
                     Button {
-                        withAnimation { columnVisibility = .all }
+                        save(document)
                     } label: {
-                        Image(systemName: "sidebar.left")
+                        Image(systemName: document.isDirty ? "square.and.arrow.down.fill" : "square.and.arrow.down")
                     }
                 }
             }
-        }
-        .sheet(isPresented: $showSearch) {
-            SearchReplaceView()
+            .sheet(isPresented: $showSearch) {
+                SearchReplaceView()
+            }
         }
     }
     
-    private func saveActiveDocument() {
-        guard let doc = appState.activeDocument else { return }
+    private func save(_ document: EditorDocument) {
         Task {
-            try? await appState.workspaceManager.save(document: doc)
+            try? await appState.workspaceManager.save(document: document)
         }
     }
 }
