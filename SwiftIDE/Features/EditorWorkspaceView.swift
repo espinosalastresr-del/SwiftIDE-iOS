@@ -4,10 +4,9 @@ struct EditorWorkspaceView: View {
     @EnvironmentObject var appState: AppState
     @State private var showSearch = false
     @State private var showFileBrowser = true
+    @StateObject private var editorActions = EditorActions()
     
     var body: some View {
-        // On iPhone, NavigationSplitView detail column is unreliable.
-        // Use explicit view switching instead.
         Group {
             if let doc = appState.activeDocument, !showFileBrowser {
                 editorView(for: doc)
@@ -64,7 +63,7 @@ struct EditorWorkspaceView: View {
                     DocumentTabsView()
                 }
                 
-                CodeEditorContainer(document: document)
+                CodeEditorContainer(document: document, editorActions: editorActions)
             }
             .navigationTitle(document.fileName)
             .navigationBarTitleDisplayMode(.inline)
@@ -81,6 +80,20 @@ struct EditorWorkspaceView: View {
                 }
                 
                 ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        editorActions.undo()
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .disabled(!editorActions.canUndo)
+                    
+                    Button {
+                        editorActions.redo()
+                    } label: {
+                        Image(systemName: "arrow.uturn.forward")
+                    }
+                    .disabled(!editorActions.canRedo)
+                    
                     Button {
                         showSearch = true
                     } label: {
@@ -164,13 +177,19 @@ struct DocumentTab: View {
 struct CodeEditorContainer: View {
     @ObservedObject var document: EditorDocument
     @EnvironmentObject var appState: AppState
+    @ObservedObject var editorActions: EditorActions
     @State private var saveTask: Task<Void, Never>?
     
     var body: some View {
-        CodeEditorView(text: $document.content, isDirty: $document.isDirty) { _ in
-            document.markDirty()
-            scheduleAutosave()
-        }
+        CodeEditorView(
+            text: $document.content,
+            isDirty: $document.isDirty,
+            onTextChange: { _ in
+                document.markDirty()
+                scheduleAutosave()
+            },
+            editorActions: editorActions
+        )
         .id(document.id)
         .onAppear {
             Task {

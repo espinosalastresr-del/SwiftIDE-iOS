@@ -5,6 +5,7 @@ struct CodeEditorView: UIViewRepresentable {
     @Binding var text: String
     @Binding var isDirty: Bool
     var onTextChange: ((String) -> Void)?
+    var editorActions: EditorActions?
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -28,26 +29,40 @@ struct CodeEditorView: UIViewRepresentable {
         textView.layoutManager.allowsNonContiguousLayout = true
         textView.keyboardAppearance = .dark
         textView.tintColor = UIColor.systemBlue
+        textView.allowsEditingTextAttributes = false
         
-        // Completion accessory
+        // Undo is enabled by default on UITextView
+        textView.undoManager?.levelsOfUndo = 50
+        
         let accessory = CompletionAccessoryView()
         accessory.onSelect = { [weak coordinator = context.coordinator] item in
             coordinator?.insertCompletion(item, in: textView)
         }
+        accessory.onUndo = { [weak actions = editorActions] in
+            actions?.undo()
+        }
+        accessory.onRedo = { [weak actions = editorActions] in
+            actions?.redo()
+        }
         textView.inputAccessoryView = accessory
         context.coordinator.accessory = accessory
+        context.coordinator.editorActions = editorActions
         
-        context.coordinator.applyHighlighting(to: textView, text: text)
+        context.coordinator.applyHighlighting(to: textView, text: text, registerUndo: false)
         CompletionEngine.shared.indexSource(text)
+        editorActions?.attach(textView)
         
         return textView
     }
     
     func updateUIView(_ uiView: CodeTextView, context: Context) {
+        context.coordinator.editorActions = editorActions
         if uiView.text != text && !context.coordinator.isEditing {
-            context.coordinator.applyHighlighting(to: uiView, text: text)
+            context.coordinator.applyHighlighting(to: uiView, text: text, registerUndo: false)
             CompletionEngine.shared.indexSource(text)
+            editorActions?.attach(uiView)
         }
+        editorActions?.refresh()
     }
     
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -57,22 +72,65 @@ struct CodeEditorView: UIViewRepresentable {
         private var debounceWorkItem: DispatchWorkItem?
         private var completionWorkItem: DispatchWorkItem?
         weak var accessory: CompletionAccessoryView?
+        weak var editorActions: EditorActions?
         
         init(_ parent: CodeEditorView) {
             self.parent = parent
         }
         
-        func applyHighlighting(to textView: CodeTextView, text: String) {
+        /// Aplica resaltado sin destruir la pila de undo cuando es posible.
+        func applyHighlighting(to textView: CodeTextView, text: String, registerUndo: Bool) {
             let selectedRange = textView.selectedRange
-            let attributed = highlighter.highlight(text: text)
-            textView.attributedText = attributed
+            let undo = textView.undoManager
+            
+            if !registerUndo {
+                undo?.disableUndoRegistration()
+            }
+            
+            // Si el string es el mismo, solo actualizamos atributos (mejor para undo).
+            if textView.text == text {
+                let storage = textView.textStorage
+                storage.beginEditing()
+                let fullRange = NSRange(location: 0, length: storage.length)
+                let baseFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+                storage.setAttributes([
+                    .font: baseFont,
+                    .foregroundColor: SyntaxTheme.dark.plain
+                ], range: fullRange)
+                
+                let tokens = SwiftLexer().tokenize(text)
+                for token in tokens {
+                    guard token.range.location + token.range.length <= fullRange.length else { continue }
+                    storage.addAttribute(
+                        .foregroundColor,
+                        value: SyntaxTheme.dark.color(for: token.type),
+                        range: token.range
+                    )
+                }
+                storage.endEditing()
+            } else {
+                let attributed = highlighter.highlight(text: text)
+                textView.attributedText = attributed
+            }
+            
+            if !registerUndo {
+                undo?.enableUndoRegistration()
+            }
+            
             textView.selectedRange = selectedRange
-            textView.setNeedsDisplay() // line numbers
+            textView.setNeedsDisplay()
+            editorActions?.refresh()
+            accessory?.updateUndoRedo(
+                canUndo: undo?.canUndo ?? false,
+                canRedo: undo?.canRedo ?? false
+            )
         }
         
         func textViewDidBeginEditing(_ textView: UITextView) {
             isEditing = true
+            editorActions?.attach(textView)
             refreshCompletions(in: textView)
+            editorActions?.refresh()
         }
         
         func textViewDidEndEditing(_ textView: UITextView) {
@@ -85,11 +143,16 @@ struct CodeEditorView: UIViewRepresentable {
             parent.text = newText
             parent.isDirty = true
             parent.onTextChange?(newText)
+            editorActions?.refresh()
+            accessory?.updateUndoRedo(
+                canUndo: textView.undoManager?.canUndo ?? false,
+                canRedo: textView.undoManager?.canRedo ?? false
+            )
             
             debounceWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                self.applyHighlighting(to: textView as! CodeTextView, text: newText)
+                self.applyHighlighting(to: textView as! CodeTextView, text: newText, registerUndo: false)
                 CompletionEngine.shared.indexSource(newText)
             }
             debounceWorkItem = work
@@ -100,6 +163,7 @@ struct CodeEditorView: UIViewRepresentable {
         
         func textViewDidChangeSelection(_ textView: UITextView) {
             refreshCompletions(in: textView)
+            editorActions?.refresh()
         }
         
         private func refreshCompletions(in textView: UITextView) {
@@ -119,41 +183,37 @@ struct CodeEditorView: UIViewRepresentable {
         func insertCompletion(_ item: CompletionItem, in textView: UITextView) {
             let text = textView.text ?? ""
             let cursor = textView.selectedRange.location
-            let (prefix, range) = CompletionEngine.wordPrefix(in: text, cursor: cursor)
+            let (_, range) = CompletionEngine.wordPrefix(in: text, cursor: cursor)
             
-            let ns = text as NSString
-            let newText = ns.replacingCharacters(in: range, with: item.insertText)
-            let newCursor = range.location + (item.insertText as NSString).length
-            
-            textView.text = newText
-            textView.selectedRange = NSRange(location: newCursor, length: 0)
-            
-            parent.text = newText
-            parent.isDirty = true
-            parent.onTextChange?(newText)
-            
-            applyHighlighting(to: textView as! CodeTextView, text: newText)
-            CompletionEngine.shared.indexSource(newText)
-            refreshCompletions(in: textView)
+            // Usar replace del textView para que entre en la pila de undo
+            if textView.selectedRange != range {
+                textView.selectedRange = range
+            }
+            textView.insertText(item.insertText)
+            // textViewDidChange se encargará del resto
         }
     }
 }
 
-// MARK: - Completion accessory (barra sobre el teclado)
+// MARK: - Completion accessory
 
 final class CompletionAccessoryView: UIView {
     var onSelect: ((CompletionItem) -> Void)?
+    var onUndo: (() -> Void)?
+    var onRedo: (() -> Void)?
     
     private var items: [CompletionItem] = []
     private let collectionView: UICollectionView
     private let emptyLabel = UILabel()
+    private let undoButton = UIButton(type: .system)
+    private let redoButton = UIButton(type: .system)
     
     init() {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.minimumInteritemSpacing = 8
         layout.minimumLineSpacing = 8
-        layout.sectionInset = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        layout.sectionInset = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 44))
         setup()
@@ -169,6 +229,23 @@ final class CompletionAccessoryView: UIView {
         blur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(blur)
         
+        // Undo / Redo buttons
+        configureIconButton(undoButton, systemName: "arrow.uturn.backward", action: #selector(undoTapped))
+        configureIconButton(redoButton, systemName: "arrow.uturn.forward", action: #selector(redoTapped))
+        undoButton.isEnabled = false
+        redoButton.isEnabled = false
+        
+        let buttonStack = UIStackView(arrangedSubviews: [undoButton, redoButton])
+        buttonStack.axis = .horizontal
+        buttonStack.spacing = 4
+        buttonStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(buttonStack)
+        
+        let separator = UIView()
+        separator.backgroundColor = UIColor.white.withAlphaComponent(0.15)
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(separator)
+        
         collectionView.backgroundColor = .clear
         collectionView.showsHorizontalScrollIndicator = false
         collectionView.dataSource = self
@@ -180,20 +257,28 @@ final class CompletionAccessoryView: UIView {
         emptyLabel.text = "Escribe para ver sugerencias…"
         emptyLabel.font = .systemFont(ofSize: 13)
         emptyLabel.textColor = UIColor.secondaryLabel
-        emptyLabel.textAlignment = .center
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(emptyLabel)
         
         NSLayoutConstraint.activate([
+            buttonStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            buttonStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            buttonStack.widthAnchor.constraint(equalToConstant: 72),
+            
+            separator.leadingAnchor.constraint(equalTo: buttonStack.trailingAnchor, constant: 6),
+            separator.centerYAnchor.constraint(equalTo: centerYAnchor),
+            separator.widthAnchor.constraint(equalToConstant: 1),
+            separator.heightAnchor.constraint(equalToConstant: 24),
+            
             collectionView.topAnchor.constraint(equalTo: topAnchor),
             collectionView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            collectionView.leadingAnchor.constraint(equalTo: separator.trailingAnchor, constant: 4),
             collectionView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            emptyLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+            
+            emptyLabel.centerXAnchor.constraint(equalTo: collectionView.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
         
-        // Top border
         let border = UIView()
         border.backgroundColor = UIColor.white.withAlphaComponent(0.1)
         border.translatesAutoresizingMaskIntoConstraints = false
@@ -204,6 +289,26 @@ final class CompletionAccessoryView: UIView {
             border.trailingAnchor.constraint(equalTo: trailingAnchor),
             border.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
         ])
+    }
+    
+    private func configureIconButton(_ button: UIButton, systemName: String, action: Selector) {
+        let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        button.setImage(UIImage(systemName: systemName, withConfiguration: config), for: .normal)
+        button.tintColor = .white
+        button.addTarget(self, action: action, for: .touchUpInside)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.widthAnchor.constraint(equalToConstant: 34).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 34).isActive = true
+    }
+    
+    @objc private func undoTapped() { onUndo?() }
+    @objc private func redoTapped() { onRedo?() }
+    
+    func updateUndoRedo(canUndo: Bool, canRedo: Bool) {
+        undoButton.isEnabled = canUndo
+        redoButton.isEnabled = canRedo
+        undoButton.alpha = canUndo ? 1.0 : 0.35
+        redoButton.alpha = canRedo ? 1.0 : 0.35
     }
     
     func update(items: [CompletionItem], prefix: String = "") {
@@ -346,8 +451,8 @@ final class CodeTextView: UITextView {
         let nsText = textStorage.string as NSString
         let fullLength = nsText.length
         
-        if glyphRange.location > 0 {
-            let charIndex = layoutManager.characterIndexForGlyph(at: min(glyphRange.location, max(layoutManager.numberOfGlyphs - 1, 0)))
+        if glyphRange.location > 0 && layoutManager.numberOfGlyphs > 0 {
+            let charIndex = layoutManager.characterIndexForGlyph(at: min(glyphRange.location, layoutManager.numberOfGlyphs - 1))
             let prefix = nsText.substring(to: min(charIndex, fullLength))
             lineNumber = prefix.components(separatedBy: .newlines).count
         }
