@@ -30,7 +30,10 @@ struct CodeEditorView: UIViewRepresentable {
         textView.keyboardAppearance = .dark
         textView.tintColor = UIColor.systemBlue
         textView.allowsEditingTextAttributes = false
-        textView.undoManager?.levelsOfUndo = 50
+        
+        // Undo más granular: no agrupar todo el ciclo de evento en un solo paso
+        textView.undoManager?.levelsOfUndo = 100
+        textView.undoManager?.groupsByEvent = false
         
         let accessory = CompletionAccessoryView()
         accessory.onSelect = { [weak coordinator = context.coordinator] item in
@@ -62,9 +65,6 @@ struct CodeEditorView: UIViewRepresentable {
         context.coordinator.editorActions = editorActions
         context.coordinator.parent = self
         
-        // Solo sincronizar texto externo cuando NO estamos editando.
-        // No llamar editorActions.refresh() aquí: publicaba @Published y
-        // provocaba un bucle infinito updateUIView → body → updateUIView.
         if !context.coordinator.isEditing,
            !context.coordinator.isApplyingExternalText,
            uiView.text != text {
@@ -94,7 +94,6 @@ struct CodeEditorView: UIViewRepresentable {
             self.parent = parent
         }
         
-        /// Solo atributos de color. No toca UndoManager.
         func recolor(_ textView: CodeTextView) {
             let storage = textView.textStorage
             let fullLength = storage.length
@@ -163,7 +162,6 @@ struct CodeEditorView: UIViewRepresentable {
             parent.isDirty = true
             parent.onTextChange?(newText)
             
-            // Actualizar botones de undo (solo si cambian valores)
             editorActions?.refresh()
             syncAccessoryUndo(textView)
             
@@ -181,7 +179,6 @@ struct CodeEditorView: UIViewRepresentable {
         
         func textViewDidChangeSelection(_ textView: UITextView) {
             refreshCompletions(in: textView)
-            // No publicar a SwiftUI en cada cambio de selección
             syncAccessoryUndo(textView)
         }
         

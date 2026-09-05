@@ -3,20 +3,14 @@ import SwiftUI
 struct EditorWorkspaceView: View {
     @EnvironmentObject var appState: AppState
     @State private var showSearch = false
-    @State private var showFileBrowser = true
     @StateObject private var editorActions = EditorActions()
     
     var body: some View {
         Group {
-            if let doc = appState.activeDocument, !showFileBrowser {
+            if appState.isShowingEditor, let doc = appState.activeDocument {
                 editorView(for: doc)
             } else {
                 fileBrowserView
-            }
-        }
-        .onChange(of: appState.activeDocumentID) { _, newID in
-            if newID != nil {
-                showFileBrowser = false
             }
         }
     }
@@ -44,7 +38,7 @@ struct EditorWorkspaceView: View {
                     if appState.activeDocument != nil {
                         ToolbarItem(placement: .primaryAction) {
                             Button {
-                                showFileBrowser = false
+                                appState.showEditor()
                             } label: {
                                 Label("Editor", systemImage: "doc.text")
                             }
@@ -70,7 +64,7 @@ struct EditorWorkspaceView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        showFileBrowser = true
+                        appState.showFileBrowser()
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
@@ -101,22 +95,29 @@ struct EditorWorkspaceView: View {
                     }
                     
                     Button {
-                        save(document)
+                        Task { await appState.saveActiveDocument() }
                     } label: {
-                        Image(systemName: document.isDirty ? "square.and.arrow.down.fill" : "square.and.arrow.down")
+                        Image(systemName: saveIcon(for: document))
                     }
                 }
             }
             .sheet(isPresented: $showSearch) {
                 SearchReplaceView()
             }
+            .alert("Error al guardar", isPresented: Binding(
+                get: { appState.lastSaveError != nil },
+                set: { if !$0 { appState.lastSaveError = nil } }
+            )) {
+                Button("OK") { appState.lastSaveError = nil }
+            } message: {
+                Text(appState.lastSaveError ?? "")
+            }
         }
     }
     
-    private func save(_ document: EditorDocument) {
-        Task {
-            try? await appState.workspaceManager.save(document: document)
-        }
+    private func saveIcon(for document: EditorDocument) -> String {
+        if appState.lastSaveOK { return "checkmark.circle.fill" }
+        return document.isDirty ? "square.and.arrow.down.fill" : "square.and.arrow.down"
     }
 }
 
@@ -132,6 +133,7 @@ struct DocumentTabsView: View {
                         isActive: doc.id == appState.activeDocumentID
                     ) {
                         appState.activeDocumentID = doc.id
+                        appState.isShowingEditor = true
                     } onClose: {
                         appState.closeDocument(doc.id)
                     }
@@ -213,10 +215,15 @@ struct CodeEditorContainer: View {
     private func scheduleAutosave() {
         saveTask?.cancel()
         saveTask = Task {
-            try? await Task.sleep(nanoseconds: 800_000_000)
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
             guard !Task.isCancelled else { return }
-            try? await appState.workspaceManager.save(document: document)
-            try? await appState.persistence.clearRecovery(for: document.fileURL)
+            do {
+                try await appState.workspaceManager.save(document: document)
+                try await appState.persistence.clearRecovery(for: document.fileURL)
+            } catch {
+                // Autosave silencioso; el guardado manual mostrará error
+                print("Autosave failed: \(error)")
+            }
         }
     }
 }
